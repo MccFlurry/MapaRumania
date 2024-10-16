@@ -57,7 +57,7 @@ heuristics = {
 # Función para cargar y mostrar la imagen del mapa
 def load_map_image():
     map_image = Image.open("recursos/rumania.png")
-    map_image = map_image.resize((1000, 600), Image.Resampling.LANCZOS)  # Actualizado a Image.Resampling.LANCZOS
+    map_image = map_image.resize((1000, 600), Image.Resampling.LANCZOS)
     map_photo = ImageTk.PhotoImage(map_image)
     map_label.config(image=map_photo)
     map_label.image = map_photo
@@ -78,7 +78,17 @@ def update_explorados_table(explorados):
         explorados_table.insert('', 'end', values=(i + 1, city))
     window.update_idletasks()
 
-# Algoritmos de búsqueda
+# Función para calcular heurística dinámica con respecto a la ciudad de destino
+def calculate_heuristic(graph, target_city):
+    new_heuristics = {}
+    for city in graph:
+        if city == target_city:
+            new_heuristics[city] = 0
+        else:
+            # Utilizamos la heurística original para simplificar
+            new_heuristics[city] = heuristics.get(city, float('inf'))
+    return new_heuristics
+
 # Búsqueda en amplitud
 def bfs(graph, start):
     visited = set()
@@ -96,7 +106,8 @@ def bfs(graph, start):
         if current_city not in visited:
             visited.add(current_city)
             explorados.append(current_city)
-            frontera.remove(current_city)
+            if current_city in frontera:
+                frontera.remove(current_city)
 
             for neighbor, distance in graph[current_city]:
                 if neighbor not in visited:
@@ -107,6 +118,7 @@ def bfs(graph, start):
                     queue.append((neighbor, cumulative_distance, path + [neighbor]))
                     if neighbor not in frontera:
                         frontera.append(neighbor)
+    
     return distances, paths
 
 # Búsqueda en profundidad
@@ -126,7 +138,8 @@ def dfs(graph, start):
         if current_city not in visited:
             visited.add(current_city)
             explorados.append(current_city)
-            frontera.remove(current_city)
+            if current_city in frontera:
+                frontera.remove(current_city)
 
             for neighbor, distance in graph[current_city]:
                 if neighbor not in visited:
@@ -137,6 +150,7 @@ def dfs(graph, start):
                     stack.append((neighbor, cumulative_distance, path + [neighbor]))
                     if neighbor not in frontera:
                         frontera.append(neighbor)
+    
     return distances, paths
 
 # Búsqueda en profundidad limitada
@@ -156,7 +170,8 @@ def limited_depth_search(graph, start, limit):
         if current_city not in visited and depth <= limit:
             visited.add(current_city)
             explorados.append(current_city)
-            frontera.remove(current_city)
+            if current_city in frontera:
+                frontera.remove(current_city)
 
             for neighbor, distance in graph[current_city]:
                 if neighbor not in visited:
@@ -167,10 +182,14 @@ def limited_depth_search(graph, start, limit):
                     stack.append((neighbor, cumulative_distance, depth + 1, path + [neighbor]))
                     if neighbor not in frontera:
                         frontera.append(neighbor)
+    
     return distances, paths
 
-# Búsqueda voraz
-def greedy_search(graph, start, heuristic):
+# Búsqueda voraz con heurística dinámica
+def greedy_search(graph, start, target, heuristic):
+    # Recalcular heurísticas en función de la ciudad objetivo (target)
+    heuristic = calculate_heuristic(graph, target)
+
     visited = set()
     priority_queue = []
     heapq.heappush(priority_queue, (heuristic.get(start, float('inf')), start, 0, [start]))
@@ -178,7 +197,7 @@ def greedy_search(graph, start, heuristic):
     paths = {start: [start]}
     frontera = [start]
     explorados = []
-    
+
     while priority_queue:
         update_frontera_table(frontera)
         update_explorados_table(explorados)
@@ -187,7 +206,8 @@ def greedy_search(graph, start, heuristic):
         if current_city not in visited:
             visited.add(current_city)
             explorados.append(current_city)
-            frontera.remove(current_city)
+            if current_city in frontera:
+                frontera.remove(current_city)
 
             for neighbor, distance in graph[current_city]:
                 if neighbor not in visited:
@@ -198,6 +218,7 @@ def greedy_search(graph, start, heuristic):
                     heapq.heappush(priority_queue, (heuristic.get(neighbor, float('inf')), neighbor, cumulative_distance, path + [neighbor]))
                     if neighbor not in frontera:
                         frontera.append(neighbor)
+    
     return distances, paths
 
 # Función para dibujar el camino en un grafo con networkx
@@ -250,85 +271,97 @@ def draw_path_networkx(path):
     plt.show()
 
 # Función para ejecutar la búsqueda y actualizar la interfaz con el resultado
-def run_search(algorithm, target_city):
+def run_search(algorithm, origin_city, target_city, limit=3):
     if algorithm == 'Búsqueda en Amplitud':
-        distances, paths = bfs(romania_map, 'Arad')
+        distances, paths = bfs(romania_map, origin_city)
     elif algorithm == 'DFS':
-        distances, paths = dfs(romania_map, 'Arad')
+        distances, paths = dfs(romania_map, origin_city)
     elif algorithm == 'Búsqueda en Profundidad Limitada':
-        distances, paths = limited_depth_search(romania_map, 'Arad', 3)
+        distances, paths = limited_depth_search(romania_map, origin_city, limit)
     elif algorithm == 'Búsqueda Voraz':
-        distances, paths = greedy_search(romania_map, 'Arad', heuristics)
+        distances, paths = greedy_search(romania_map, origin_city, target_city, heuristics)
     
     # Mostrar resultado final
-    result = f"Distancias desde Arad hasta {target_city} utilizando {algorithm}:\n"
+    result = f"Distancias desde {origin_city} hasta {target_city} utilizando {algorithm}:\n"
     if target_city in distances:
         result += f"{target_city}: {distances[target_city]} km\n"
         result += f"Ciudades recorridas: {' -> '.join(paths[target_city])}"
-        # Program the drawing to happen in the main thread using `after()`
-        window.after(0, lambda: draw_path_networkx(paths[target_city]))  # Draw in main thread
+        window.after(0, lambda: draw_path_networkx(paths[target_city]))  # Dibujar camino
     else:
         result += f"{target_city} no alcanzada."
-    
+
     result_label.config(text=result)
 
 # Función para ejecutar la búsqueda en un hilo separado
-def run_search_in_thread(algorithm, target_city):
-    search_thread = threading.Thread(target=run_search, args=(algorithm, target_city))
+def run_search_in_thread(algorithm, origin_city, target_city, limit):
+    search_thread = threading.Thread(target=run_search, args=(algorithm, origin_city, target_city, limit))
     search_thread.start()
 
 # Crear la interfaz gráfica usando Tkinter
 window = tk.Tk()
 window.title("Algoritmos de Búsqueda - Mapa de Rumania")
 
-# Crear el frame principal
+# Frame principal
 main_frame = tk.Frame(window)
 main_frame.pack(fill=tk.BOTH, expand=True)
 
-# Frame izquierdo para los controles y tablas
+# Frame izquierdo
 left_frame = tk.Frame(main_frame)
 left_frame.pack(side=tk.LEFT, padx=10, pady=10)
 
-# Frame derecho para mostrar la imagen del mapa
+# Frame derecho
 right_frame = tk.Frame(main_frame)
 right_frame.pack(side=tk.RIGHT, padx=10, pady=10)
 
-# Cargar y mostrar la imagen del mapa
+# Cargar imagen
 map_label = tk.Label(right_frame)
 map_label.pack(pady=10)
-load_map_image()  # Llamar la función para cargar la imagen
+load_map_image()
 
-# Widgets de la interfaz (dentro del left_frame)
+# Widgets en left_frame
 tk.Label(left_frame, text="Seleccione el algoritmo:").pack()
-
 algorithm_choice = ttk.Combobox(left_frame, values=["Seleccionar", "Búsqueda en Amplitud", "DFS", "Búsqueda en Profundidad Limitada", "Búsqueda Voraz"])
 algorithm_choice.pack()
 algorithm_choice.current(0)
 
-tk.Label(left_frame, text="Seleccione la ciudad destino:").pack()
+# Ciudad de origen
+tk.Label(left_frame, text="Seleccione la ciudad de origen:").pack()
+origin_city_choice = ttk.Combobox(left_frame, values=list(romania_map.keys()))
+origin_city_choice.pack()
+origin_city_choice.current(0)
 
+# Ciudad de destino
+tk.Label(left_frame, text="Seleccione la ciudad destino:").pack()
 target_city_choice = ttk.Combobox(left_frame, values=list(romania_map.keys()))
 target_city_choice.pack()
 target_city_choice.current(0)
 
+# Límite para búsqueda en profundidad limitada
+limit_label = tk.Label(left_frame, text="Límite para Búsqueda en Profundidad Limitada:")
+limit_label.pack()
+limit_entry = tk.Entry(left_frame)
+limit_entry.pack()
+
+# Resultado
 result_label = tk.Label(left_frame, text="Resultados aparecerán aquí.")
 result_label.pack()
 
-# Crear la tabla para la frontera
+# Tabla para la frontera
 frontera_table = ttk.Treeview(left_frame, columns=("Pos", "Ciudad"), show="headings", height=5)
 frontera_table.heading("Pos", text="Posición")
 frontera_table.heading("Ciudad", text="Ciudad")
 frontera_table.pack(pady=10)
 
-# Crear la tabla para los explorados
+# Tabla para explorados
 explorados_table = ttk.Treeview(left_frame, columns=("Pos", "Ciudad"), show="headings", height=5)
 explorados_table.heading("Pos", text="Posición")
 explorados_table.heading("Ciudad", text="Ciudad")
 explorados_table.pack(pady=10)
 
-# Botón para ejecutar la búsqueda
-search_button = tk.Button(left_frame, text="Iniciar Búsqueda", command=lambda: run_search_in_thread(algorithm_choice.get(), target_city_choice.get()))
+# Botón para iniciar búsqueda
+search_button = tk.Button(left_frame, text="Iniciar Búsqueda", command=lambda: run_search_in_thread(
+    algorithm_choice.get(), origin_city_choice.get(), target_city_choice.get(), int(limit_entry.get() or 3)))
 search_button.pack(pady=10)
 
-# Iniciar la interfaz gráfica
+# Iniciar GUI
 window.mainloop()

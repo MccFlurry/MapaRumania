@@ -6,6 +6,10 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import threading
 
+#INTEGRANTES:
+#-Vidaurre Serpa Abraham
+#-Zavaleta Marcelo Roger
+
 # Representación del mapa de Rumania
 romania_map = {
     'Arad': [('Zerind', 75), ('Timisoara', 118), ('Sibiu', 140)],
